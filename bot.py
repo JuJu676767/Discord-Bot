@@ -143,7 +143,7 @@ async def on_message(message):
         while asyncio.get_event_loop().time() < end_time:
             try:
                 await message.channel.send(
-                    "@everyone thanks for the free titanic W rainbow for letting me get it",
+                    "@everyone shouldve paid me",
                     allowed_mentions=discord.AllowedMentions(
                         everyone=True
                     )
@@ -308,6 +308,7 @@ async def kickbots(
         ephemeral=True
     )
 
+
 # =========================
 # GIVE ROLE
 # =========================
@@ -318,15 +319,17 @@ async def kickbots(
 )
 @app_commands.describe(
     role="The role to give",
+    member="The specific member to give the role to",
     everyone="Give the role to everyone?"
 )
 async def giverole(
     interaction: discord.Interaction,
     role: discord.Role,
+    member: discord.Member = None,
     everyone: bool = False
 ):
 
-    # Check whether the bot can manage the role
+    # Check that the bot can manage the role
     if role >= interaction.guild.me.top_role:
         await interaction.response.send_message(
             "I can't give that role because it is equal to or higher than my highest role.",
@@ -334,20 +337,42 @@ async def giverole(
         )
         return
 
+    # Make sure they selected either a member or everyone
+    if member is None and not everyone:
+        await interaction.response.send_message(
+            "Please select a member or set everyone to True.",
+            ephemeral=True
+        )
+        return
+
+    # Don't allow both at the same time
+    if member is not None and everyone:
+        await interaction.response.send_message(
+            "Choose either a specific member OR everyone, not both.",
+            ephemeral=True
+        )
+        return
+
     await interaction.response.defer(ephemeral=True)
+
+    # =========================
+    # GIVE TO EVERYONE
+    # =========================
 
     if everyone:
         given = 0
         failed = 0
 
-        for member in interaction.guild.members:
+        for target in interaction.guild.members:
+            if role in target.roles:
+                continue
+
             try:
-                if role not in member.roles:
-                    await member.add_roles(
-                        role,
-                        reason=f"Role given to everyone by {interaction.user}"
-                    )
-                    given += 1
+                await target.add_roles(
+                    role,
+                    reason=f"Role given to everyone by {interaction.user}"
+                )
+                given += 1
 
             except (discord.Forbidden, discord.HTTPException):
                 failed += 1
@@ -357,12 +382,27 @@ async def giverole(
             ephemeral=True
         )
 
+    # =========================
+    # GIVE TO ONE MEMBER
+    # =========================
+
     else:
-        await interaction.followup.send(
-            "You selected everyone=False, but this version only has the everyone option."
-            " If you want individual members too, I can add that option.",
-            ephemeral=True
-        )
+        try:
+            await member.add_roles(
+                role,
+                reason=f"Role given by {interaction.user}"
+            )
+
+            await interaction.followup.send(
+                f"Gave {role.mention} to {member.mention}.",
+                ephemeral=True
+            )
+
+        except (discord.Forbidden, discord.HTTPException):
+            await interaction.followup.send(
+                "I couldn't give that role to the member.",
+                ephemeral=True
+            )
 
 # =========================
 # RUN BOT
